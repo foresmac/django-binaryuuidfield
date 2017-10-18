@@ -1,20 +1,22 @@
 import uuid
 
+from django import forms
 from django.core import exceptions
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
 
 
-def generate_db_uuid():
-    return uuid.UUID(int=_optimize_bytes(uuid.uuid1().int))
- 
- 
-def _optimize_bytes(value):
-    return (
-        ((value & 0x000000000000FFFF0000000000000000) << 48) |
-        ((value & 0x00000000FFFF00000000000000000000) << 16) |
-        ((value & 0xFFFFFFFF000000000000000000000000) >> 32) |
-        ((value & 0x0000000000000000FFFFFFFFFFFFFFFF)))
+def auto_uuid_pk():
+    intial = uuid.uuid1().int
+    optimized = (
+        ((initial & 0x000000000000FFFF0000000000000000) << 48) |
+        ((initial & 0x00000000FFFF00000000000000000000) << 16) |
+        ((initial & 0xFFFFFFFF000000000000000000000000) >> 32) |
+        ((initial & 0x0000000000000000FFFFFFFFFFFFFFFF)))
+    return uuid.UUID(int=optimized)
+
+def auto_uuid_rnd():
+    return uuid.uuid4()
 
 
 class BinaryUUIDField(models.Field):
@@ -29,13 +31,27 @@ class BinaryUUIDField(models.Field):
     description = 'Universally unique identifier'
     empty_strings_allowed = False
 
-    def __init__(self, verbose_name=None, default=generate_db_uuid, **kwargs):
-        kwargs['max_length'] = 32
+    def __init__(self, verbose_name=None, auto=False, **kwargs):
+        primary_key = kwargs.get('primary_key', False)
+        self.auto = True if primary_key else auto
+
+        if auto:
+            kwargs['default'] = auto_uuid_pk if primary_key else auto_uuid_rnd
+            kwargs['unique'] = True
+            kwargs['editable'] = False
+
+        kwargs['max_length'] = 36  # UUID can take hex string with hyphens
         super(UUIDField, self).__init__(verbose_name, default, **kwargs)
 
     def deconstruct(self):
         name, path, args, kwargs = super(BinaryUUIDField, self).deconstruct()
         del kwargs['max_length']
+
+        if self.auto:
+            kwargs.pop('editable')
+            kwargs.pop('unique')
+            kwargs.pop('default')
+
         return name, path, args, kwargs
 
     def db_type(self, connection):
@@ -81,6 +97,3 @@ class BinaryUUIDField(models.Field):
         }
         defaults.update(kwargs)
         return super(BinaryUUIDField, self).formfield(**defaults)
-
-
-
