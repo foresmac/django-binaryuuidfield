@@ -22,13 +22,15 @@ def auto_uuid_rnd():
 class BinaryUUIDField(models.Field):
     """
     A UUID field type backed with binary storage, and an index-optimized
-    binary represenation for a sensible default.
+    byte order as the sensible default for pimary keys. If `auto=True` and
+    the field is not used as a primary key, a random UUID is auto-generated.
+    Auto-generated UUIDs are not editable.
     """
 
     default_error_messages = {
         'invalid': _("'%(value)s' is not a valid UUID."),
     }
-    description = 'Universally unique identifier'
+    description = 'Universally unique identifier with binary storage on MySQL'
     empty_strings_allowed = False
 
     def __init__(self, verbose_name=None, auto=False, **kwargs):
@@ -41,7 +43,7 @@ class BinaryUUIDField(models.Field):
             kwargs['editable'] = False
 
         kwargs['max_length'] = 36  # UUID can take hex string with hyphens
-        super(UUIDField, self).__init__(verbose_name, default, **kwargs)
+        super(BinaryUUIDField, self).__init__(verbose_name, **kwargs)
 
     def deconstruct(self):
         name, path, args, kwargs = super(BinaryUUIDField, self).deconstruct()
